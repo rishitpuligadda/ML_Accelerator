@@ -1,0 +1,16 @@
+# vsim -suppress 3116 -c tb_dense_layer 
+# Start time: 19:20:44 on Sep 05,2025
+# Loading sv_std.std
+# Loading work.tb_dense_layer
+# Loading work.dense_layer
+# Batch[0] Inputs = '{1, 2, 3, 4}
+#   Neuron[0]: Output = 30
+#   Neuron[1]: Output = 9
+#   Neuron[2]: Output = 2
+# Batch[1] Inputs = '{2, -1, 0, 3}
+#   Neuron[0]: Output = 12
+#   Neuron[1]: Output = 1
+#   Neuron[2]: Output = 8
+# invalid command name "quite"
+# End time: 19:25:39 on Sep 05,2025, Elapsed time: 0:04:55
+# Errors: 1, Warnings: 0, Suppressed Warnings: 10
