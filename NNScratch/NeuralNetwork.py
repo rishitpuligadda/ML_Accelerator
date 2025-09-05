@@ -33,6 +33,12 @@ class Activation_SoftMax:
         exp_values = np.exp(inputs - np.max(inputs, axis=1, keepdims=True))
         self.output = exp_values / np.sum(exp_values, axis=1, keepdims=True)
 
+class Loss:
+    def calculate(self, output, y):
+        sample_losses = self.forward(output, y)
+        data_loss = np.mean(sample_losses)
+        return data_loss
+
 layer1 = Layer_Dense(2, 3)
 activation1 = Activation_ReLU()
 layer2 = Layer_Dense(3, 3)
