@@ -44,9 +44,9 @@ class Loss_CategoricalCrossEntropy(Loss):
         samples = len(y_pred)
         y_pred_clipped = np.clip(y_pred, 1e-7, 1-1e-7)
 
-        if (len(y_true.shape) == 1:
+        if (len(y_true.shape)) == 1:
             correct_confidences = y_pred_clipped[range(samples), y_true]
-        elif (len(y_true.shape) == 2:
+        elif (len(y_true.shape)) == 2:
             correct_confidences = np.sum(y_pred_clipped*y_true, axis=1)
         Totloss = -np.log(correct_confidences)
         return Totloss
@@ -62,4 +62,8 @@ activation1.forward(layer1.output)
 layer2.forward(activation1.output)
 activation2.forward(layer2.output)
 
-print(activation2.output)
+loss_function = Loss_CategoricalCrossEntropy()
+loss = loss_function.calculate(activation2.output, y)
+
+print(activation2.output[:5])
+print(loss)
