@@ -1,5 +1,5 @@
 # vsim -suppress 3116 -c tb_dense_layer 
-# Start time: 19:20:44 on Sep 05,2025
+# Start time: 12:14:52 on Sep 08,2025
 # Loading sv_std.std
 # Loading work.tb_dense_layer
 # Loading work.dense_layer
@@ -11,6 +11,6 @@
 #   Neuron[0]: Output = 12
 #   Neuron[1]: Output = 1
 #   Neuron[2]: Output = 8
-# invalid command name "quite"
-# End time: 19:25:39 on Sep 05,2025, Elapsed time: 0:04:55
+# invalid command name "quit'"
+# End time: 12:36:33 on Sep 08,2025, Elapsed time: 0:21:41
 # Errors: 1, Warnings: 0, Suppressed Warnings: 10

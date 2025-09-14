@@ -3,4 +3,7 @@
 #except 
 !.gitignore
 !NNScratch/
+!NNScratch/*
 !NNVerilog/
+!NNVerilog/*
+NNScratch/__pycache__
