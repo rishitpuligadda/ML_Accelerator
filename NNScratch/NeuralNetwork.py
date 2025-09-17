@@ -60,7 +60,7 @@ loss_function = Loss_CategoricalCrossEntropy()
 lowest_loss = 9999999
 best_layer1_weights = layer1.weights.copy()
 best_layer2_weights = layer2.weights.copy()
-best_layer1_biases = layer2.biases.copy()
+best_layer1_biases = layer1.biases.copy()
 best_layer2_biases = layer2.biases.copy()
 
 #Training by the second method in optimization.py code
@@ -91,3 +91,9 @@ for i in range(10000):
         layer1.biases = best_layer1_biases.copy()
         layer2.weights = best_layer2_weights.copy()
         layer2.biases = best_layer2_biases.copy()
+
+
+print(best_layer1_weights, '\n')
+print(best_layer2_weights, '\n')
+print(best_layer1_biases, '\n')
+print(best_layer2_biases)
