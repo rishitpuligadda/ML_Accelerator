@@ -28,7 +28,7 @@ class Layer_Dense:
 
     def backward(self, dvalues):
         self.dweights = np.dot(self.inputs.T, dvalues)
-        self.dbiases = np.sum(dvalues, axis=0, keepdims=True)
+        self.biases = np.sum(dvalues, axis=0, keepdims=True)
         self.dinputs = np.dot(dvalues, self.weights.T)
 
 class Activation_ReLU:
@@ -42,7 +42,6 @@ class Activation_ReLU:
 
 class Activation_SoftMax:
     def forward(self, inputs):
-        self.inputs = inputs
         exp_values = np.exp(inputs - np.max(inputs, axis=1, keepdims=True))
         self.output = exp_values / np.sum(exp_values, axis=1, keepdims=True)
 
@@ -80,8 +79,6 @@ class Loss_CategoricalCrossEntropy(Loss):
         self.dinputs = -y_true/dvalues
         self.dinputs = self.dinputs/samples
 
-#softmax classifier - combined softmax activation and
-#cross-entropy loss for faster backward step
 class Activation_Softmax_Loss_CategoricalCrossentropy():
     def __init__(self):
         self.activation = Activation_SoftMax()
@@ -103,31 +100,48 @@ class Activation_Softmax_Loss_CategoricalCrossentropy():
 layer1 = Layer_Dense(2, 3)
 activation1 = Activation_ReLU()
 layer2 = Layer_Dense(3, 3)
-loss_activation = Activation_Softmax_Loss_CategoricalCrossentropy()
+activation2 = Activation_SoftMax()
+loss_function = Loss_CategoricalCrossEntropy()
+    
+lowest_loss = 9999999
+best_layer1_weights = layer1.weights.copy()
+best_layer2_weights = layer2.weights.copy()
+best_layer1_biases = layer1.biases.copy()
+best_layer2_biases = layer2.biases.copy()
 
-layer1.forward(X)
-activation1.forward(layer1.output)
-layer2.forward(activation1.output)
-loss = loss_activation.forward(layer2.output, y)
+#Training by the second method in optimization.py code
+for i in range(10000):
+    layer1.weights += 0.05 * np.random.randn(2, 3)
+    layer1.biases += 0.05 * np.random.randn(1, 3)
+    layer2.weights += 0.05 * np.random.randn(3, 3)
+    layer2.biases += 0.05 * np.random.randn(1, 3)
 
-print(loss_activation.output[:5])
-print('loss: ', loss)
+    layer1.forward(X)
+    activation1.forward(layer1.output)
+    layer2.forward(activation1.output)
+    activation2.forward(layer2.output)
+    
+    loss = loss_function.calculate(activation2.output, y)
+    predictions = np.argmax(activation2.output, axis=1)
+    accuracy = np.mean(predictions == y)
 
-predictions = np.argmax(loss_activation.output, axis=1)
+    if loss < lowest_loss:
+        print(f"iteration: {i}, loss: {loss} & acc: {accuracy}")
+        best_layer1_weights = layer1.weights.copy()
+        best_layer1_biases = layer1.biases.copy()
+        best_layer2_weights = layer2.weights.copy()
+        best_layer2_biases = layer2.biases.copy()
+        lowest_loss = loss
+    else:
+        layer1.weights = best_layer1_weights.copy()
+        layer1.biases = best_layer1_biases.copy()
+        layer2.weights = best_layer2_weights.copy()
+        layer2.biases = best_layer2_biases.copy()
 
-if len(y.shape) == 2:
-    y = np.argmax(y, axis=1)
 
-accuracy = np.mean(predictions == y)
-print('acc: ', accuracy)
+print(best_layer1_weights, '\n')
+print(best_layer2_weights, '\n')
+print(best_layer1_biases, '\n')
+print(best_layer2_biases)
 
-#backward pass
-loss_activation.backward(loss_activation.output, y)
-layer2.backward(loss_activation.dinputs)
-activation1.backward(layer2.dinputs)
-layer1.backward(activation1.dinputs)
 
-print(layer1.dweights)
-print(layer1.dbiases)
-print(layer2.dweights)
-print(layer2.dbiases)
