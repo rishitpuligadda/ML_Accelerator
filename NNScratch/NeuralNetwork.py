@@ -102,44 +102,66 @@ class Activation_Softmax_Loss_CategoricalCrossentropy():
 
 class Optimizer_SGD:
     #Stochastic Gradient Descent
-    def __init__(self, learning_rate=1.0):
+    def __init__(self, learning_rate=1.0, decay=0., momentum=0.):
         self.learning_rate = learning_rate
+        self.current_learning_rate = learning_rate
+        self.decay = decay
+        self.iterations = 0
+        self.momentum = momentum
+    
+    def pre_update_params(self):
+        if self.decay:
+            self.current_learning_rate = self.learning_rate * (1./(1. + self.decay * self.iterations))
 
     def update_params(self, layer):
-        layer.weights += -self.learning_rate * layer.dweights
-        layer.biases += -self.learning_rate * layer.dbiases
+        if self.momentum:
+            if not hasattr(layer, 'weight_momentums'):
+                layer.weight_momentums = np.zeros_like(layer.weights)
+                layer.bias_momentums = np.zeros_like(layer.biases)
+            weight_updates = self.momentum * layer.weight_momentums - self.current_learning_rate * layer.dweights
+            layer.weight_momentums = weight_updates
+            bias_updates = self.momentum * layer.bias_momentums - self.current_learning_rate* layer.dbiases
+            layer.bias_momentums = bias_updates
+        else:
+            weight_updates = -self.current_learning_rate * layer.dweights
+            bias_updates = -self.current_learning_rate * layer.dbiases
+
+        layer.weights += weight_updates
+        layer.biases += bias_updates
+
+    def post_update_params(self):
+        self.iterations += 1
 
 layer1 = Layer_Dense(2, 64)
 activation1 = Activation_ReLU()
 layer2 = Layer_Dense(64, 3)
 loss_activation = Activation_Softmax_Loss_CategoricalCrossentropy()
+optimizer = Optimizer_SGD(decay = 1e-3, momentum = 0.9)
 
-layer1.forward(X)
-activation1.forward(layer1.output)
-layer2.forward(activation1.output)
-loss = loss_activation.forward(layer2.output, y)
-optimizer = Optimizer_SGD()
+for epoch in range(10001):
+    layer1.forward(X)
+    activation1.forward(layer1.output)
+    layer2.forward(activation1.output)
+    loss = loss_activation.forward(layer2.output, y)
 
-print('loss: ', loss)
+    predictions = np.argmax(loss_activation.output, axis=1)
 
-predictions = np.argmax(loss_activation.output, axis=1)
+    if len(y.shape) == 2:
+        y = np.argmax(y, axis=1)
 
-if len(y.shape) == 2:
-    y = np.argmax(y, axis=1)
+    accuracy = np.mean(predictions == y)
 
-accuracy = np.mean(predictions == y)
-print('acc: ', accuracy)
+    if not epoch % 100 :
+        print(f'epoch: {epoch}, acc: {accuracy:.3f}, loss: {loss:.3f}, lr: {optimizer.current_learning_rate}')
 
-#backward pass
-loss_activation.backward(loss_activation.output, y)
-layer2.backward(loss_activation.dinputs)
-activation1.backward(layer2.dinputs)
-layer1.backward(activation1.dinputs)
+    #backward pass
+    loss_activation.backward(loss_activation.output, y)
+    layer2.backward(loss_activation.dinputs)
+    activation1.backward(layer2.dinputs)
+    layer1.backward(activation1.dinputs)
 
-print(layer1.dweights)
-print(layer1.dbiases)
-print(layer2.dweights)
-print(layer2.dbiases)
+    optimizer.pre_update_params()
+    optimizer.update_params(layer1)
+    optimizer.update_params(layer2)
+    optimizer.post_update_params()
 
-optimizer.update_params(layer1)
-optimizer.update_params(layer2)
