@@ -100,17 +100,26 @@ class Activation_Softmax_Loss_CategoricalCrossentropy():
         self.dinputs[range(samples), y_true] -= 1
         self.dinputs = self.dinputs / samples
 
-layer1 = Layer_Dense(2, 3)
+class Optimizer_SGD:
+    #Stochastic Gradient Descent
+    def __init__(self, learning_rate=1.0):
+        self.learning_rate = learning_rate
+
+    def update_params(self, layer):
+        layer.weights += -self.learning_rate * layer.dweights
+        layer.biases += -self.learning_rate * layer.dbiases
+
+layer1 = Layer_Dense(2, 64)
 activation1 = Activation_ReLU()
-layer2 = Layer_Dense(3, 3)
+layer2 = Layer_Dense(64, 3)
 loss_activation = Activation_Softmax_Loss_CategoricalCrossentropy()
 
 layer1.forward(X)
 activation1.forward(layer1.output)
 layer2.forward(activation1.output)
 loss = loss_activation.forward(layer2.output, y)
+optimizer = Optimizer_SGD()
 
-print(loss_activation.output[:5])
 print('loss: ', loss)
 
 predictions = np.argmax(loss_activation.output, axis=1)
@@ -131,3 +140,6 @@ print(layer1.dweights)
 print(layer1.dbiases)
 print(layer2.dweights)
 print(layer2.dbiases)
+
+optimizer.update_params(layer1)
+optimizer.update_params(layer2)
