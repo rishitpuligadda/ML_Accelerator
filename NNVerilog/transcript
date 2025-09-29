@@ -1,16 +1,25 @@
-# vsim -suppress 3116 -c tb_dense_layer 
-# Start time: 12:14:52 on Sep 08,2025
+# vsim -suppress 3116 -c tb_softmax -do "run -all; quit" 
+# Start time: 21:05:14 on Sep 29,2025
 # Loading sv_std.std
-# Loading work.tb_dense_layer
-# Loading work.dense_layer
-# Batch[0] Inputs = '{1, 2, 3, 4}
-#   Neuron[0]: Output = 30
-#   Neuron[1]: Output = 9
-#   Neuron[2]: Output = 2
-# Batch[1] Inputs = '{2, -1, 0, 3}
-#   Neuron[0]: Output = 12
-#   Neuron[1]: Output = 1
-#   Neuron[2]: Output = 8
-# invalid command name "quit'"
-# End time: 12:36:33 on Sep 08,2025, Elapsed time: 0:21:41
-# Errors: 1, Warnings: 0, Suppressed Warnings: 10
+# Loading work.tb_softmax
+# Loading work.softmax_fixedpt
+# Loading work.exp_approx
+# run -all
+# Softmax Fixed-Point Testbench
+# Time	Input(Fixed/Real)	Output(Fixed/Real)
+# Vector 0:
+#   Input[0] = 256 / 1.000000	Output[0] = 54 / 0.210938
+#   Input[1] = 512 / 2.000000	Output[1] = 147 / 0.574219
+#   Input[2] = 128 / 0.500000	Output[2] = 33 / 0.128906
+#   Input[3] = -256 / -1.000000	Output[3] = 22 / 0.085938
+# 
+# Vector 1:
+#   Input[0] = -307 / -1.199219	Output[0] = 25 / 0.097656
+#   Input[1] = 0 / 0.000000	Output[1] = 25 / 0.097656
+#   Input[2] = 128 / 0.500000	Output[2] = 38 / 0.148438
+#   Input[3] = 512 / 2.000000	Output[3] = 168 / 0.656250
+# 
+# ** Note: $finish    : tb_softmax.sv(61)
+#    Time: 30 ns  Iteration: 0  Instance: /tb_softmax
+# End time: 21:05:14 on Sep 29,2025, Elapsed time: 0:00:00
+# Errors: 0, Warnings: 0, Suppressed Warnings: 10
