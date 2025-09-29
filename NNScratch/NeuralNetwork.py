@@ -1,9 +1,5 @@
 import numpy as np 
 
-X = [[1, 2, 3, 2.5],
-     [2.0, 5.0, -1.0, 2.0],
-     [-1.5, 2.7, 3.3, -0.8]]
-
 def spiral_data(points, classes):
     X = np.zeros((points*classes, 2))
     y = np.zeros(points*classes, dtype='uint8')
@@ -258,3 +254,5 @@ for epoch in range(10001):
     optimizer.update_params(layer2)
     optimizer.post_update_params()
 
+
+print(layer1.weights)
