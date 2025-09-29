@@ -1,30 +1,54 @@
 import numpy as np 
-import nnfs
-from NeuralNetwork import Activation_Softmax_Loss_CategoricalCrossentropy, Activation_SoftMax, Loss_CategoricalCrossEntropy
 
-#nnfs.init()
+class Layer_Dense:
+    def __init__(self, n_inputs, n_neurons):
+        self.weights = 0.1 * np.random.randn(n_inputs, n_neurons)
+        self.biases = np.zeros((1, n_neurons))
 
-softmax_outputs = np.array([[0.7, 0.1, 0.2],
-                            [0.1, 0.5, 0.4],
-                            [0.02, 0.9, 0.08]])
+    def forward(self, inputs):
+        self.output = np.dot(inputs, self.weights) + self.biases
+        self.inputs = inputs
 
-class_targets = np.array([0, 1, 1])
+    def backward(self, dvalues):
+        self.dweights = np.dot(self.inputs.T, dvalues)
+        self.dbiases = np.sum(dvalues, axis=0, keepdims=True)
+        self.dinputs = np.dot(dvalues, self.weights.T)
 
-softmax_loss = Activation_Softmax_Loss_CategoricalCrossentropy()
-softmax_loss.backward(softmax_outputs, class_targets)
+class Activation_ReLU:
+    def forward(self, inputs):
+        self.output = np.maximum(0, inputs)
+        self.inputs = inputs
 
-dvalues1 = softmax_loss.dinputs
+    def backward(self, dvalues):
+        self.dinputs = dvalues.copy()
+        self.dinputs[self.inputs <= 0] = 0
 
-activation = Activation_SoftMax()
-activation.output = softmax_outputs
+class Activation_SoftMax:
+    def forward(self, inputs):
+        self.inputs = inputs
+        exp_values = np.exp(inputs - np.max(inputs, axis=1, keepdims=True))
+        self.output = exp_values / np.sum(exp_values, axis=1, keepdims=True)
 
-loss = Loss_CategoricalCrossEntropy()
-loss.backward(softmax_outputs, class_targets)
-activation.backward(loss.dinputs)
+# Create a layer: 4 inputs → 3 neurons
+layer1 = Layer_Dense(4, 3)
+activation1 = Activation_ReLU()
+layer2 = Layer_Dense(3, 2)
+activation2 = Activation_SoftMax()
 
-dvalues2 =  activation.dinputs
+# Example input batch: 2 samples, each with 4 features
+inputs = np.array([
+    [1, 2, 3, 4],
+    [2, -1, 0, 3]
+])
 
-print("blahhhhh")
-print(dvalues1)
+# Forward pass
+layer1.forward(inputs)
+activation1.forward(layer1.output)
+layer2.forward(activation1.output)
+activation2.forward(layer2.output)
+
+print(layer1.weights)
 print()
-print(dvalues2)
+print(layer2.weights)
+print()
+print(activation2.output)
