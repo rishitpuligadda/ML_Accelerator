@@ -10,7 +10,8 @@ module neural_network_2layer_softmax #(
     input  logic signed [WIDTH-1:0] W1         [HIDDEN1][IN_SIZE],
     input  logic signed [WIDTH-1:0] B1         [HIDDEN1],       // Layer1 biases
     input  logic signed [WIDTH-1:0] W2         [OUT_SIZE][HIDDEN1],
-    input  logic signed [WIDTH-1:0] B2         [OUT_SIZE],       // Layer2 biases
+    input  logic signed [WIDTH-1:0] B2         [OUT_SIZE],      // Layer2 biases
+    output logic signed [WIDTH-1:0] dense1_dbg [BATCH][HIDDEN1], // <-- debug port
     output logic signed [WIDTH-1:0] softmax_out[BATCH][OUT_SIZE] // Final softmax
 );
 
@@ -28,6 +29,9 @@ module neural_network_2layer_softmax #(
         .inputs(in_vec),
         .result(dense1_out)
     );
+
+    // Expose first layer outputs for debugging
+    assign dense1_dbg = dense1_out;
 
     // ---- Layer 1: ReLU ----
     genvar b, i;

@@ -3,20 +3,21 @@
 module tb_neural_network_2layer;
 
     // ---- Parameters ----
-    parameter IN_SIZE    = 4;
-    parameter HIDDEN1    = 3;
-    parameter OUT_SIZE   = 2;
+    parameter IN_SIZE    = 2;
+    parameter HIDDEN1    = 64;
+    parameter OUT_SIZE   = 3;
     parameter WIDTH      = 16;
     parameter FRAC       = 8;
-    parameter BATCH      = 2;
+    parameter BATCH      = 300;
 
     // ---- Signals ----
     logic signed [WIDTH-1:0] in_vec      [BATCH][IN_SIZE];
     logic signed [WIDTH-1:0] W1          [HIDDEN1][IN_SIZE];
     logic signed [WIDTH-1:0] B1          [HIDDEN1];          // Layer1 biases
     logic signed [WIDTH-1:0] W2          [OUT_SIZE][HIDDEN1];
-    logic signed [WIDTH-1:0] B2          [OUT_SIZE];          // Layer2 biases
+    logic signed [WIDTH-1:0] B2          [OUT_SIZE];         // Layer2 biases
     logic signed [WIDTH-1:0] softmax_out [BATCH][OUT_SIZE];
+    logic signed [WIDTH-1:0] dense1_dbg  [BATCH][HIDDEN1];   // <-- NEW debug wire
 
     // ---- Instantiate Neural Network ----
     neural_network_2layer_softmax #(
@@ -32,6 +33,7 @@ module tb_neural_network_2layer;
         .B1(B1),
         .W2(W2),
         .B2(B2),
+        .dense1_dbg(dense1_dbg),   // <-- connect debug port
         .softmax_out(softmax_out)
     );
 
@@ -101,6 +103,15 @@ module tb_neural_network_2layer;
         $fclose(file);
 
         #1; // settle combinational outputs
+
+        // ---- Print First Layer Outputs ----
+        for (int b = 0; b < BATCH; b++) begin
+            $display("Batch %0d Layer1 (Dense) outputs:", b);
+            for (int i = 0; i < HIDDEN1; i++) begin
+                $display("  dense1_dbg[%0d] = %0d (fixed), %f (real)",
+                         i, dense1_dbg[b][i], to_real(dense1_dbg[b][i]));
+            end
+        end
 
         // ---- Open output file for max index ----
         fout = $fopen("../parameters/outputs.txt", "w");
