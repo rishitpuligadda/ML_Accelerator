@@ -1,20 +1,21 @@
 # vsim -suppress 3116 -c tb_neural_network_2layer -do "run -all; quit" 
-# Start time: 22:01:00 on Sep 29,2025
+# Start time: 13:40:00 on Sep 30,2025
 # Loading sv_std.std
 # Loading work.tb_neural_network_2layer
-# Loading work.neural_network_2layer
+# Loading work.neural_network_2layer_softmax
 # Loading work.dense_layer
+# Loading work.relu
 # Loading work.softmax_fixedpt
 # Loading work.exp_approx
-# Loading work.relu
 # run -all
-# Sample 0 Output:
-#   out[0] = 114 / 0.445312
-#   out[1] = 142 / 0.554688
-# Sample 1 Output:
-#   out[0] = 119 / 0.464844
-#   out[1] = 137 / 0.535156
-# ** Note: $finish    : tb_neural_network.sv(61)
-#    Time: 30 ns  Iteration: 0  Instance: /tb_neural_network_2layer
-# End time: 22:01:01 on Sep 29,2025, Elapsed time: 0:00:01
+# Batch 0 softmax:
+#   softmax[0] = 0.492188
+#   softmax[1] = 0.507812
+# Batch 1 softmax:
+#   softmax[0] = 0.496094
+#   softmax[1] = 0.503906
+# Max indices written to outputs.txt
+# ** Note: $finish    : tb_neural_network.sv(134)
+#    Time: 6 ns  Iteration: 0  Instance: /tb_neural_network_2layer
+# End time: 13:40:00 on Sep 30,2025, Elapsed time: 0:00:00
 # Errors: 0, Warnings: 0, Suppressed Warnings: 10

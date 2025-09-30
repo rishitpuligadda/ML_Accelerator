@@ -2,18 +2,40 @@
 
 module tb_neural_network_2layer;
 
-    localparam IN_SIZE  = 4;
-    localparam HIDDEN1  = 3;
-    localparam OUT_SIZE = 2;
-    localparam WIDTH    = 16;
-    localparam FRAC     = 8;
+    // ---- Parameters ----
+    parameter IN_SIZE    = 4;
+    parameter HIDDEN1    = 3;
+    parameter OUT_SIZE   = 2;
+    parameter WIDTH      = 16;
+    parameter FRAC       = 8;
+    parameter BATCH      = 2;
 
-    logic signed [WIDTH-1:0] in_vec  [1][IN_SIZE];
-    logic signed [WIDTH-1:0] W1      [HIDDEN1][IN_SIZE];
-    logic signed [WIDTH-1:0] W2      [OUT_SIZE][HIDDEN1];
-    logic signed [WIDTH-1:0] out_vec [1][OUT_SIZE];
+    // ---- Signals ----
+    logic signed [WIDTH-1:0] in_vec      [BATCH][IN_SIZE];
+    logic signed [WIDTH-1:0] W1          [HIDDEN1][IN_SIZE];
+    logic signed [WIDTH-1:0] B1          [HIDDEN1];          // Layer1 biases
+    logic signed [WIDTH-1:0] W2          [OUT_SIZE][HIDDEN1];
+    logic signed [WIDTH-1:0] B2          [OUT_SIZE];          // Layer2 biases
+    logic signed [WIDTH-1:0] softmax_out [BATCH][OUT_SIZE];
 
-    // Helpers to convert between real and fixed-point
+    // ---- Instantiate Neural Network ----
+    neural_network_2layer_softmax #(
+        .IN_SIZE(IN_SIZE),
+        .HIDDEN1(HIDDEN1),
+        .OUT_SIZE(OUT_SIZE),
+        .WIDTH(WIDTH),
+        .FRAC(FRAC),
+        .BATCH(BATCH)
+    ) nn (
+        .in_vec(in_vec),
+        .W1(W1),
+        .B1(B1),
+        .W2(W2),
+        .B2(B2),
+        .softmax_out(softmax_out)
+    );
+
+    // ---- Fixed-point conversion functions ----
     function automatic logic signed [WIDTH-1:0] to_fixed(input real val);
         to_fixed = $rtoi(val * (1 << FRAC));
     endfunction
@@ -22,44 +44,94 @@ module tb_neural_network_2layer;
         to_real = val / real'(1 << FRAC);
     endfunction
 
-    // Instantiate neural network
-    neural_network_2layer #(
-        .IN_SIZE(IN_SIZE),
-        .HIDDEN1(HIDDEN1),
-        .OUT_SIZE(OUT_SIZE),
-        .WIDTH(WIDTH),
-        .FRAC(FRAC)
-    ) dut (
-        .in_vec(in_vec),
-        .W1(W1),
-        .W2(W2),
-        .out_vec(out_vec)
-    );
-
     initial begin
-        // ---- Example weights ----
-        W1[0] = '{to_fixed(-0.05002382), to_fixed(-0.18386332), to_fixed(0.04406993), to_fixed(0.25553058)};
-        W1[1] = '{to_fixed(0.08154866),  to_fixed(-0.0703455),  to_fixed(0.08233125), to_fixed(0.01279148)};
-        W1[2] = '{to_fixed(0.06219365),  to_fixed(0.2212559),   to_fixed(-0.01675784), to_fixed(0.09114323)};
+        int file, fout;
+        real temp;
+        int i, j;
 
-        W2[0] = '{to_fixed(-0.02116636), to_fixed(-0.02683857), to_fixed(-0.06972045)};
-        W2[1] = '{to_fixed(0.07114158),  to_fixed(0.14845954),  to_fixed(0.07781072)};
-        // ---- Input sample 0 ----
-        in_vec[0] = '{to_fixed(1), to_fixed(2), to_fixed(3), to_fixed(4)};
-        #10;
-        $display("Sample 0 Output:");
-        for(int i=0; i<OUT_SIZE; i++)
-            $display("  out[%0d] = %0d / %f", i, out_vec[0][i], to_real(out_vec[0][i]));
+        // ---- Load Layer 1 weights ----
+        file = $fopen("../parameters/weights_layer1.txt", "r");
+        if (file == 0) $fatal("Cannot open weights_layer1.txt");
+        for (i = 0; i < HIDDEN1; i++)
+            for (j = 0; j < IN_SIZE; j++)
+                if ($fscanf(file, "%f", temp) != 1)
+                    $fatal("Not enough weights in weights_layer1.txt");
+                else
+                    W1[i][j] = to_fixed(temp);
+        $fclose(file);
 
-        // ---- Input sample 1 ----
-        in_vec[0] = '{to_fixed(2), to_fixed(-1), to_fixed(0), to_fixed(3)};
-        #10;
-        $display("Sample 1 Output:");
-        for(int i=0; i<OUT_SIZE; i++)
-            $display("  out[%0d] = %0d / %f", i, out_vec[0][i], to_real(out_vec[0][i]));
+        // ---- Load Layer 1 biases ----
+        file = $fopen("../parameters/biases_layer1.txt", "r");
+        if (file == 0) $fatal("Cannot open biases_layer1.txt");
+        for (i = 0; i < HIDDEN1; i++) begin
+            if ($fscanf(file, "%f", temp) != 1) $fatal("Bad biases_layer1");
+            B1[i] = to_fixed(temp);
+        end
+        $fclose(file);
 
-        #10 $finish;
+        // ---- Load Layer 2 weights ----
+        file = $fopen("../parameters/weights_layer2.txt", "r");
+        if (file == 0) $fatal("Cannot open weights_layer2.txt");
+        for (i = 0; i < OUT_SIZE; i++)
+            for (j = 0; j < HIDDEN1; j++)
+                if ($fscanf(file, "%f", temp) != 1)
+                    $fatal("Not enough weights in weights_layer2.txt");
+                else
+                    W2[i][j] = to_fixed(temp);
+        $fclose(file);
+
+        // ---- Load Layer 2 biases ----
+        file = $fopen("../parameters/biases_layer2.txt", "r");
+        if (file == 0) $fatal("Cannot open biases_layer2.txt");
+        for (i = 0; i < OUT_SIZE; i++) begin
+            if ($fscanf(file, "%f", temp) != 1) $fatal("Bad biases_layer2");
+            B2[i] = to_fixed(temp);
+        end
+        $fclose(file);
+
+        // ---- Load inputs ----
+        file = $fopen("../parameters/inputs.txt", "r");
+        if (file == 0) $fatal("Cannot open inputs.txt");
+        for (i = 0; i < BATCH; i++)
+            for (j = 0; j < IN_SIZE; j++)
+                if ($fscanf(file, "%f", temp) != 1)
+                    $fatal("Not enough inputs in inputs.txt");
+                else
+                    in_vec[i][j] = to_fixed(temp);
+        $fclose(file);
+
+        #1; // settle combinational outputs
+
+        // ---- Open output file for max index ----
+        fout = $fopen("../parameters/outputs.txt", "w");
+        if (fout == 0) $fatal("Cannot open outputs.txt for writing");
+
+        // ---- Compute max index per batch, write to file, and display softmax ----
+        for (int b = 0; b < BATCH; b++) begin
+            automatic int max_idx = 0;
+            automatic logic signed [WIDTH-1:0] max_val = softmax_out[b][0];
+
+            // Find max index
+            for (int i = 1; i < OUT_SIZE; i++) begin
+                if (softmax_out[b][i] > max_val) begin
+                    max_val = softmax_out[b][i];
+                    max_idx = i;
+                end
+            end
+
+            // Write index to file
+            $fwrite(fout, "%0d\n", max_idx);
+
+            // Display softmax values
+            $display("Batch %0d softmax:", b);
+            for (int i = 0; i < OUT_SIZE; i++) begin
+                $display("  softmax[%0d] = %f", i, to_real(softmax_out[b][i]));
+            end
+        end
+
+        $fclose(fout);
+        $display("Max indices written to outputs.txt");
+        #5 $finish;
     end
-
 endmodule
 

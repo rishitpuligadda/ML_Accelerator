@@ -29,18 +29,37 @@ module tb_dense_layer;
     endfunction
 
     initial begin
-        // Assign weights (real values converted to fixed-point)
-        weights[0] = '{ to_fixed(0.03779225),  to_fixed(-0.0181641),  to_fixed(-0.12103897),  to_fixed(-0.04087051) };
-        weights[1] = '{ to_fixed(0.06265889), to_fixed(0.0380107),  to_fixed(-0.01975206),  to_fixed(0.16375556) };
-        weights[2] = '{ to_fixed(0.0398717),  to_fixed(0.01922126), to_fixed(0.09439117),  to_fixed(-0.13749411) };
+        int file;
+        real temp;
+        int i, j;
 
-        // Assign inputs (real values converted to fixed-point)
-        inputs[0] = '{ to_fixed(1.0), to_fixed(2.0), to_fixed(3.0), to_fixed(4.0) };
-        inputs[1] = '{ to_fixed(2.0), to_fixed(-1.0), to_fixed(0.0), to_fixed(3.0) };
+        // ---- Load weights from file ----
+        file = $fopen("../parameters/weights_layer1.txt", "r");
+        if (file == 0) $fatal("Error: could not open weights.txt");
+        for (i = 0; i < M; i++) begin
+            for (j = 0; j < N; j++) begin
+                if ($fscanf(file, "%f", temp) != 1)
+                    $fatal("Error: not enough weights in weights.txt");
+                weights[i][j] = to_fixed(temp);
+            end
+        end
+        $fclose(file);
+
+        // ---- Load inputs from file ----
+        file = $fopen("../parameters/inputs.txt", "r");
+        if (file == 0) $fatal("Error: could not open inputs.txt");
+        for (i = 0; i < B; i++) begin
+            for (j = 0; j < N; j++) begin
+                if ($fscanf(file, "%f", temp) != 1)
+                    $fatal("Error: not enough inputs in inputs.txt");
+                inputs[i][j] = to_fixed(temp);
+            end
+        end
+        $fclose(file);
 
         #1;
 
-        // Display results
+        // ---- Display results ----
         for(int b = 0; b < B; b++) begin
             $display("Batch[%0d] Inputs (fixed) = %p", b, inputs[b]);
             for(int i = 0; i < M; i++) begin
@@ -52,3 +71,4 @@ module tb_dense_layer;
         #5 $finish;
     end
 endmodule
+
