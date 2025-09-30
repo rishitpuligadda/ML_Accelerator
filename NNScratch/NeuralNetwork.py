@@ -254,5 +254,65 @@ for epoch in range(10001):
     optimizer.update_params(layer2)
     optimizer.post_update_params()
 
+X_test, y_test = spiral_data(points=100, classes=3)
+layer1.forward(X_test)
+activation1.forward(layer1.output)
+layer2.forward(activation1.output)
+loss = loss_activation.forward(layer2.output, y_test)
 
-print(layer1.weights)
+predictions = np.argmax(loss_activation.output, axis=1)
+
+if len(y_test.shape) == 2:
+    y_test = np.argmax(y_test, axis=1)
+
+accuracy = np.mean(predictions == y_test)
+print(f'validation, acc:{accuracy:.3f}, loss:{loss:.3f}')
+print(layer1.output)
+
+# ---- Debug: last 5 samples ----
+print("\n===== Debug: Last 5 samples =====")
+print("Layer1 outputs (dense):")
+print(layer1.output[-5:])
+print("\nReLU1 outputs:")
+print(activation1.output[-5:])
+print("\nLayer2 outputs (logits):")
+print(layer2.output[-5:])
+print("\nSoftmax outputs:")
+print(loss_activation.output[-5:])
+print("\nTrue labels:", y_test[-5:])
+print("Predictions:", predictions[-5:])
+
+np.savetxt("../parameters/outputlayer1.txt", layer1.output, fmt="%.6f")
+np.savetxt("../parameters/inputs.txt", X_test, fmt="%.6f")
+np.savetxt("../parameters/trueOutputs.txt", y_test, fmt="%.6f")
+np.savetxt("../parameters/PythonOutputs.txt", predictions, fmt="%.6f")
+
+# Get weights and biases from the layers
+weights1 = layer1.weights
+biases1  = layer1.biases
+weights2 = layer2.weights
+biases2  = layer2.biases
+
+# ---- Save biases, one per line ----
+with open("../parameters/biases_layer1.txt", "w") as f:
+    for val in biases1.flatten():  # Flatten to 1D
+        f.write(f"{val:.6f}\n")    # Write each bias on a separate line
+
+with open("../parameters/biases_layer2.txt", "w") as f:
+    for val in biases2.flatten():
+        f.write(f"{val:.6f}\n")    # Write each bias on a separate line
+
+# ---- Save weights row by row ----
+with open("../parameters/weights_layer1.txt", "w") as f:
+    for row in weights1:
+        line = " ".join(f"{val:.6f}" for val in row)
+        f.write(line + "\n")
+
+with open("../parameters/weights_layer2.txt", "w") as f:
+    for row in weights2:
+        line = " ".join(f"{val:.6f}" for val in row)
+        f.write(line + "\n")
+
+print("All weights and biases are stored in the files, biases one per line.")
+
+
