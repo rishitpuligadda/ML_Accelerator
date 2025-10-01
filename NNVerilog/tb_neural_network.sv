@@ -6,18 +6,18 @@ module tb_neural_network_2layer;
     parameter IN_SIZE    = 2;
     parameter HIDDEN1    = 64;
     parameter OUT_SIZE   = 3;
-    parameter WIDTH      = 16;
+    parameter WIDTH      = 18;
     parameter FRAC       = 8;
     parameter BATCH      = 300;
 
     // ---- Signals ----
     logic signed [WIDTH-1:0] in_vec      [BATCH][IN_SIZE];
     logic signed [WIDTH-1:0] W1          [HIDDEN1][IN_SIZE];
-    logic signed [WIDTH-1:0] B1          [HIDDEN1];          // Layer1 biases
+    logic signed [WIDTH-1:0] B1          [HIDDEN1];          
     logic signed [WIDTH-1:0] W2          [OUT_SIZE][HIDDEN1];
-    logic signed [WIDTH-1:0] B2          [OUT_SIZE];         // Layer2 biases
+    logic signed [WIDTH-1:0] B2          [OUT_SIZE];         
     logic signed [WIDTH-1:0] softmax_out [BATCH][OUT_SIZE];
-    logic signed [WIDTH-1:0] dense1_dbg  [BATCH][HIDDEN1];   // <-- NEW debug wire
+    logic signed [WIDTH-1:0] dense2_dbg  [BATCH][OUT_SIZE];   // Debug Layer 2
 
     // ---- Instantiate Neural Network ----
     neural_network_2layer_softmax #(
@@ -33,8 +33,8 @@ module tb_neural_network_2layer;
         .B1(B1),
         .W2(W2),
         .B2(B2),
-        .dense1_dbg(dense1_dbg),   // <-- connect debug port
-        .softmax_out(softmax_out)
+        .softmax_out(softmax_out),
+        .debug_dense2(dense2_dbg)   // Connect Layer 2 outputs
     );
 
     // ---- Fixed-point conversion functions ----
@@ -104,40 +104,34 @@ module tb_neural_network_2layer;
 
         #1; // settle combinational outputs
 
-        // ---- Print First Layer Outputs ----
+        // ---- Print Layer 2 (Dense) Outputs ----
         for (int b = 0; b < BATCH; b++) begin
-            $display("Batch %0d Layer1 (Dense) outputs:", b);
-            for (int i = 0; i < HIDDEN1; i++) begin
-                $display("  dense1_dbg[%0d] = %0d (fixed), %f (real)",
-                         i, dense1_dbg[b][i], to_real(dense1_dbg[b][i]));
+            $display("Batch %0d Layer2 (Dense) outputs:", b);
+            for (int i = 0; i < OUT_SIZE; i++) begin
+                $display("  dense2_dbg[%0d] = %0d (fixed), %f (real)",
+                         i, dense2_dbg[b][i], to_real(dense2_dbg[b][i]));
             end
         end
 
-        // ---- Open output file for max index ----
+        // ---- Compute softmax max indices and write to file ----
         fout = $fopen("../parameters/outputs.txt", "w");
         if (fout == 0) $fatal("Cannot open outputs.txt for writing");
 
-        // ---- Compute max index per batch, write to file, and display softmax ----
         for (int b = 0; b < BATCH; b++) begin
             automatic int max_idx = 0;
             automatic logic signed [WIDTH-1:0] max_val = softmax_out[b][0];
-
-            // Find max index
             for (int i = 1; i < OUT_SIZE; i++) begin
                 if (softmax_out[b][i] > max_val) begin
                     max_val = softmax_out[b][i];
                     max_idx = i;
                 end
             end
-
-            // Write index to file
             $fwrite(fout, "%0d\n", max_idx);
 
-            // Display softmax values
+            // Display softmax
             $display("Batch %0d softmax:", b);
-            for (int i = 0; i < OUT_SIZE; i++) begin
+            for (int i = 0; i < OUT_SIZE; i++)
                 $display("  softmax[%0d] = %f", i, to_real(softmax_out[b][i]));
-            end
         end
 
         $fclose(fout);

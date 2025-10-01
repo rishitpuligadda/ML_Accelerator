@@ -1,3 +1,5 @@
+`timescale 1ns/1ps
+
 module neural_network_2layer_softmax #(
     parameter IN_SIZE    = 2,
     parameter HIDDEN1    = 64,
@@ -8,14 +10,15 @@ module neural_network_2layer_softmax #(
 )(
     input  logic signed [WIDTH-1:0] in_vec     [BATCH][IN_SIZE],
     input  logic signed [WIDTH-1:0] W1         [HIDDEN1][IN_SIZE],
-    input  logic signed [WIDTH-1:0] B1         [HIDDEN1],       // Layer1 biases
+    input  logic signed [WIDTH-1:0] B1         [HIDDEN1],
     input  logic signed [WIDTH-1:0] W2         [OUT_SIZE][HIDDEN1],
-    input  logic signed [WIDTH-1:0] B2         [OUT_SIZE],      // Layer2 biases
-    output logic signed [WIDTH-1:0] dense1_dbg [BATCH][HIDDEN1], // <-- debug port
-    output logic signed [WIDTH-1:0] softmax_out[BATCH][OUT_SIZE] // Final softmax
+    input  logic signed [WIDTH-1:0] B2         [OUT_SIZE],
+    output logic signed [WIDTH-1:0] softmax_out[BATCH][OUT_SIZE],
+
+    // Debug port: only expose Layer 2 outputs
+    output logic signed [WIDTH-1:0] debug_dense2[BATCH][OUT_SIZE]
 );
 
-    // ---- Internal signals ----
     logic signed [WIDTH-1:0] dense1_out [BATCH][HIDDEN1];
     logic signed [WIDTH-1:0] relu1_out  [BATCH][HIDDEN1];
     logic signed [WIDTH-1:0] dense2_out [BATCH][OUT_SIZE];
@@ -29,9 +32,6 @@ module neural_network_2layer_softmax #(
         .inputs(in_vec),
         .result(dense1_out)
     );
-
-    // Expose first layer outputs for debugging
-    assign dense1_dbg = dense1_out;
 
     // ---- Layer 1: ReLU ----
     genvar b, i;
@@ -56,7 +56,10 @@ module neural_network_2layer_softmax #(
         .result(dense2_out)
     );
 
-    // ---- Layer 3: Softmax ----
+    // Connect Layer 2 outputs to debug port
+    assign debug_dense2 = dense2_out;
+
+    // ---- Softmax ----
     generate
         for (b = 0; b < BATCH; b++) begin : batch_softmax
             softmax_fixedpt #(

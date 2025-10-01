@@ -286,11 +286,12 @@ np.savetxt("../parameters/outputlayer1.txt", layer1.output, fmt="%.6f")
 np.savetxt("../parameters/inputs.txt", X_test, fmt="%.6f")
 np.savetxt("../parameters/trueOutputs.txt", y_test, fmt="%.6f")
 np.savetxt("../parameters/PythonOutputs.txt", predictions, fmt="%.6f")
+np.savetxt("../parameters/softmax.txt", loss_activation.output, fmt="%.6f")
 
 # Get weights and biases from the layers
-weights1 = layer1.weights
+weights1 = layer1.weights.T
 biases1  = layer1.biases
-weights2 = layer2.weights
+weights2 = layer2.weights.T
 biases2  = layer2.biases
 
 # ---- Save biases, one per line ----
