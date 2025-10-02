@@ -11,12 +11,16 @@ def spiral_data(points, classes):
         y[ix] = class_number
     return X, y
 
-X, y = spiral_data(100, 3)
+X, y = spiral_data(1000, 3)
 
 class Layer_Dense:
-    def __init__(self, n_inputs, n_neurons):
+    def __init__(self, n_inputs, n_neurons, weight_regularizer_l1=0, weight_regularizer_l2=0, bias_regularizer_l1=0, bias_regularizer_l2=0):
         self.weights = 0.1 * np.random.randn(n_inputs, n_neurons)
         self.biases = np.zeros((1, n_neurons))
+        self.weight_regularizer_l1 = weight_regularizer_l1
+        self.weight_regularizer_l2 = weight_regularizer_l2
+        self.bias_regularizer_l1 = bias_regularizer_l1
+        self.bias_regularizer_l2 = bias_regularizer_l2
 
     def forward(self, inputs):
         self.output = np.dot(inputs, self.weights) + self.biases
@@ -25,6 +29,22 @@ class Layer_Dense:
     def backward(self, dvalues):
         self.dweights = np.dot(self.inputs.T, dvalues)
         self.dbiases = np.sum(dvalues, axis=0, keepdims=True)
+        
+        if self.weight_regularizer_l1 > 0:
+            dL1 = np.ones_like(self.weights)
+            dL1[self.weights < 0] = -1
+            self.dweights += self.weight_regularizer_l1 * dL1
+
+        if self.weight_regularizer_l2 > 0:
+            self.dweights += 2 * self.weight_regularizer_l2 * self.weights
+
+        if self.bias_regularizer_l1 > 0:
+            dL1 = np.ones_like(self.biases)
+            dL1[self.biases < 0] = -1
+
+        if self.bias_regularizer_l2 > 0:
+            self.dbiases += 2 * self.bias_regularizer_l2 * self.biases
+
         self.dinputs = np.dot(dvalues, self.weights.T)
 
 class Activation_ReLU:
@@ -54,6 +74,23 @@ class Loss:
         sample_losses = self.forward(output, y)
         data_loss = np.mean(sample_losses)
         return data_loss
+
+    def regularization_loss(self, layer):
+        regularization_loss = 0
+    
+        if layer.weight_regularizer_l1 > 0:
+            regularization_loss += layer.weight_regularizer_l1 * np.sum(np.abs(layer.weights))
+
+        if layer.weight_regularizer_l2 > 0:
+            regularization_loss += layer.weight_regularizer_l2 * np.sum(layer.weights ** 2)
+
+        if layer.bias_regularizer_l1 > 0:
+            regularization_loss += layer.bias_regularizer_l1 * np.sum(np.abs(layer.biases))
+
+        if layer.bias_regularizer_l2 > 0:
+            regularization_loss += layer.bias_regularizer_l2 * np.sum(layer.biases ** 2)
+
+        return regularization_loss
 
 class Loss_CategoricalCrossEntropy(Loss):
     def forward(self, y_pred, y_true):
@@ -96,6 +133,17 @@ class Activation_Softmax_Loss_CategoricalCrossentropy():
         self.dinputs[range(samples), y_true] -= 1
         self.dinputs = self.dinputs / samples
 
+class Layer_Dropout:
+    def __init__(self, rate):
+        self.rate = 1 - rate
+
+    def forward(self, inputs):
+        self.inputs = inputs
+        self.binary_mask = np.random.binomial(1, self.rate, size=inputs.shape)/self.rate
+        self.output = inputs * self.binary_mask
+
+    def backward(self, dvalues):
+        self.dinputs = dvalues * self.binary_mask
 
 class Optimizer_SGD:
     #Stochastic Gradient Descent
@@ -221,99 +269,106 @@ class Optimizer_Adam:
         self.iterations += 1
 
 
-layer1 = Layer_Dense(2, 64)
-activation1 = Activation_ReLU()
-layer2 = Layer_Dense(64, 3)
-loss_activation = Activation_Softmax_Loss_CategoricalCrossentropy()
-optimizer = Optimizer_Adam(learning_rate = 0.05, decay = 5e-7)
+if __name__ == '__main__':
+    layer1 = Layer_Dense(2, 512, weight_regularizer_l2=5e-4, bias_regularizer_l2=5e-4)
+    activation1 = Activation_ReLU()
+    dropout1 = Layer_Dropout(0.1)
+    layer2 = Layer_Dense(512, 3)
+    loss_activation = Activation_Softmax_Loss_CategoricalCrossentropy()
+    optimizer = Optimizer_Adam(learning_rate = 0.05, decay = 5e-7)
 
-for epoch in range(10001):
-    layer1.forward(X)
+    for epoch in range(10001):
+        layer1.forward(X)
+        activation1.forward(layer1.output)
+        dropout1.forward(activation1.output)
+        layer2.forward(dropout1.output)
+        data_loss = loss_activation.forward(layer2.output, y)
+        regularization_loss = loss_activation.loss.regularization_loss(layer1) + loss_activation.loss.regularization_loss(layer2)
+        loss = data_loss + regularization_loss
+
+        predictions = np.argmax(loss_activation.output, axis=1)
+
+        if len(y.shape) == 2:
+            y = np.argmax(y, axis=1)
+
+        accuracy = np.mean(predictions == y)
+
+        if not epoch % 100:
+            print(f'epoch: {epoch}, acc: {accuracy:.3f}, loss: {loss:.3f}, data_loss: {data_loss:.3}, reg_loss: {regularization_loss:.3f}, lr: {optimizer.current_learning_rate}')
+
+        #backward pass
+        loss_activation.backward(loss_activation.output, y)
+        layer2.backward(loss_activation.dinputs)
+        dropout1.backward(layer2.dinputs)
+        activation1.backward(dropout1.dinputs)
+        layer1.backward(activation1.dinputs)
+
+        optimizer.pre_update_params()
+        optimizer.update_params(layer1)
+        optimizer.update_params(layer2)
+        optimizer.post_update_params()
+
+    X_test, y_test = spiral_data(points=100, classes=3)
+    layer1.forward(X_test)
     activation1.forward(layer1.output)
     layer2.forward(activation1.output)
-    loss = loss_activation.forward(layer2.output, y)
+    loss = loss_activation.forward(layer2.output, y_test)
 
     predictions = np.argmax(loss_activation.output, axis=1)
 
-    if len(y.shape) == 2:
-        y = np.argmax(y, axis=1)
+    if len(y_test.shape) == 2:
+        y_test = np.argmax(y_test, axis=1)
 
-    accuracy = np.mean(predictions == y)
+    accuracy = np.mean(predictions == y_test)
+    print(f'validation, acc:{accuracy:.3f}, loss:{loss:.3f}')
 
-    if not epoch % 100:
-        print(f'epoch: {epoch}, acc: {accuracy:.3f}, loss: {loss:.3f}, lr: {optimizer.current_learning_rate}')
+    '''
+    print(layer1.output)
+    # ---- Debug: last 5 samples ----
+    print("\n===== Debug: Last 5 samples =====")
+    print("Layer1 outputs (dense):")
+    print(layer1.output[-5:])
+    print("\nReLU1 outputs:")
+    print(activation1.output[-5:])
+    print("\nLayer2 outputs (logits):")
+    print(layer2.output[-5:])
+    print("\nSoftmax outputs:")
+    print(loss_activation.output[-5:])
+    print("\nTrue labels:", y_test[-5:])
+    print("Predictions:", predictions[-5:])
 
-    #backward pass
-    loss_activation.backward(loss_activation.output, y)
-    layer2.backward(loss_activation.dinputs)
-    activation1.backward(layer2.dinputs)
-    layer1.backward(activation1.dinputs)
+    np.savetxt("../parameters/outputlayer1.txt", layer1.output, fmt="%.6f")
+    np.savetxt("../parameters/inputs.txt", X_test, fmt="%.6f")
+    np.savetxt("../parameters/trueOutputs.txt", y_test, fmt="%.6f")
+    np.savetxt("../parameters/PythonOutputs.txt", predictions, fmt="%.6f")
+    np.savetxt("../parameters/softmax.txt", loss_activation.output, fmt="%.6f")
 
-    optimizer.pre_update_params()
-    optimizer.update_params(layer1)
-    optimizer.update_params(layer2)
-    optimizer.post_update_params()
+    # Get weights and biases from the layers
+    weights1 = layer1.weights.T
+    biases1  = layer1.biases
+    weights2 = layer2.weights.T
+    biases2  = layer2.biases
 
-X_test, y_test = spiral_data(points=100, classes=3)
-layer1.forward(X_test)
-activation1.forward(layer1.output)
-layer2.forward(activation1.output)
-loss = loss_activation.forward(layer2.output, y_test)
+    # ---- Save biases, one per line ----
+    with open("../parameters/biases_layer1.txt", "w") as f:
+        for val in biases1.flatten():  # Flatten to 1D
+            f.write(f"{val:.6f}\n")    # Write each bias on a separate line
 
-predictions = np.argmax(loss_activation.output, axis=1)
+    with open("../parameters/biases_layer2.txt", "w") as f:
+        for val in biases2.flatten():
+            f.write(f"{val:.6f}\n")    # Write each bias on a separate line
 
-if len(y_test.shape) == 2:
-    y_test = np.argmax(y_test, axis=1)
+    # ---- Save weights row by row ----
+    with open("../parameters/weights_layer1.txt", "w") as f:
+        for row in weights1:
+            line = " ".join(f"{val:.6f}" for val in row)
+            f.write(line + "\n")
 
-accuracy = np.mean(predictions == y_test)
-print(f'validation, acc:{accuracy:.3f}, loss:{loss:.3f}')
-print(layer1.output)
+    with open("../parameters/weights_layer2.txt", "w") as f:
+        for row in weights2:
+            line = " ".join(f"{val:.6f}" for val in row)
+            f.write(line + "\n")
 
-# ---- Debug: last 5 samples ----
-print("\n===== Debug: Last 5 samples =====")
-print("Layer1 outputs (dense):")
-print(layer1.output[-5:])
-print("\nReLU1 outputs:")
-print(activation1.output[-5:])
-print("\nLayer2 outputs (logits):")
-print(layer2.output[-5:])
-print("\nSoftmax outputs:")
-print(loss_activation.output[-5:])
-print("\nTrue labels:", y_test[-5:])
-print("Predictions:", predictions[-5:])
+    print("All weights and biases are stored in the files, biases one per line.")
 
-np.savetxt("../parameters/outputlayer1.txt", layer1.output, fmt="%.6f")
-np.savetxt("../parameters/inputs.txt", X_test, fmt="%.6f")
-np.savetxt("../parameters/trueOutputs.txt", y_test, fmt="%.6f")
-np.savetxt("../parameters/PythonOutputs.txt", predictions, fmt="%.6f")
-np.savetxt("../parameters/softmax.txt", loss_activation.output, fmt="%.6f")
-
-# Get weights and biases from the layers
-weights1 = layer1.weights.T
-biases1  = layer1.biases
-weights2 = layer2.weights.T
-biases2  = layer2.biases
-
-# ---- Save biases, one per line ----
-with open("../parameters/biases_layer1.txt", "w") as f:
-    for val in biases1.flatten():  # Flatten to 1D
-        f.write(f"{val:.6f}\n")    # Write each bias on a separate line
-
-with open("../parameters/biases_layer2.txt", "w") as f:
-    for val in biases2.flatten():
-        f.write(f"{val:.6f}\n")    # Write each bias on a separate line
-
-# ---- Save weights row by row ----
-with open("../parameters/weights_layer1.txt", "w") as f:
-    for row in weights1:
-        line = " ".join(f"{val:.6f}" for val in row)
-        f.write(line + "\n")
-
-with open("../parameters/weights_layer2.txt", "w") as f:
-    for row in weights2:
-        line = " ".join(f"{val:.6f}" for val in row)
-        f.write(line + "\n")
-
-print("All weights and biases are stored in the files, biases one per line.")
-
-
+    '''
