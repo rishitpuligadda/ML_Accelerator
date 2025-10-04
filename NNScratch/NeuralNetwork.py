@@ -11,7 +11,8 @@ def spiral_data(points, classes):
         y[ix] = class_number
     return X, y
 
-X, y = spiral_data(1000, 3)
+X, y = spiral_data(100, 2)
+y = y.reshape(-1, 1)
 
 class Layer_Dense:
     def __init__(self, n_inputs, n_neurons, weight_regularizer_l1=0, weight_regularizer_l2=0, bias_regularizer_l1=0, bias_regularizer_l2=0):
@@ -69,6 +70,14 @@ class Activation_SoftMax:
             jacobian_matrix = np.diagflat(single_output) - np.dot(single_output, single_output.T)
             self.dinputs[index] = np.dot(jacobian_matrix, single_dvalues)
 
+class Activation_Sigmoid:
+    def forward(self, inputs):
+        self.inputs = inputs
+        self.output = 1/ (1 + np.exp(-inputs))
+
+    def backward(self, dvalues):
+        self.dinputs = dvalues * (1 - self.output) * self.output
+
 class Loss:
     def calculate(self, output, y):
         sample_losses = self.forward(output, y)
@@ -112,6 +121,20 @@ class Loss_CategoricalCrossEntropy(Loss):
             y_true = np.eye(labels)[y_true]
         self.dinputs = -y_true/dvalues
         self.dinputs = self.dinputs/samples
+
+class Loss_BinaryCrossentropy(Loss):
+    def forward(self, y_pred, y_true):
+        y_pred_clipped = np.clip(y_pred, 1e-7, 1-1e-7)
+        sample_losses = -(y_true * np.log(y_pred_clipped) + (1-y_true) * np.log(1-y_pred_clipped))
+        sample_losses = np.mean(sample_losses, axis=-1)
+        return sample_losses
+
+    def backward(self, dvalues, y_true):
+        samples = len(dvalues)
+        outputs = len(dvalues[0])
+        clipped_dvalues = np.clip(dvalues, 1e-7, 1-1e-7)
+        self.dinputs = -(y_true / clipped_dvalues - (1 - y_true) / (1 - clipped_dvalues)) / outputs
+        self.dinputs = self.dinputs / samples
 
 #softmax classifier - combined softmax activation and
 #cross-entropy loss for faster backward step
@@ -270,26 +293,28 @@ class Optimizer_Adam:
 
 
 if __name__ == '__main__':
-    layer1 = Layer_Dense(2, 512, weight_regularizer_l2=5e-4, bias_regularizer_l2=5e-4)
+    layer1 = Layer_Dense(2, 64, weight_regularizer_l2=5e-4, bias_regularizer_l2=5e-4)
     activation1 = Activation_ReLU()
-    dropout1 = Layer_Dropout(0.1)
-    layer2 = Layer_Dense(512, 3)
-    loss_activation = Activation_Softmax_Loss_CategoricalCrossentropy()
-    optimizer = Optimizer_Adam(learning_rate = 0.05, decay = 5e-7)
+    layer2 = Layer_Dense(64, 1)
+    activation2 = Activation_Sigmoid()
+    loss_function = Loss_BinaryCrossentropy()
+    #loss_activation = Activation_Softmax_Loss_CategoricalCrossentropy()
+    optimizer = Optimizer_Adam(decay = 5e-7)
 
     for epoch in range(10001):
         layer1.forward(X)
         activation1.forward(layer1.output)
-        dropout1.forward(activation1.output)
-        layer2.forward(dropout1.output)
-        data_loss = loss_activation.forward(layer2.output, y)
-        regularization_loss = loss_activation.loss.regularization_loss(layer1) + loss_activation.loss.regularization_loss(layer2)
+        layer2.forward(activation1.output)
+        activation2.forward(layer2.output)
+        data_loss = loss_function.calculate(activation2.output, y)
+        regularization_loss = loss_function.regularization_loss(layer1) + loss_function.regularization_loss(layer2)
         loss = data_loss + regularization_loss
 
-        predictions = np.argmax(loss_activation.output, axis=1)
+        #predictions = np.argmax(loss_activation.output, axis=1)
+        predictions = (activation2.output > 0.5) * 1
 
-        if len(y.shape) == 2:
-            y = np.argmax(y, axis=1)
+#        if len(y.shape) == 2:
+#            y = np.argmax(y, axis=1)
 
         accuracy = np.mean(predictions == y)
 
@@ -297,10 +322,10 @@ if __name__ == '__main__':
             print(f'epoch: {epoch}, acc: {accuracy:.3f}, loss: {loss:.3f}, data_loss: {data_loss:.3}, reg_loss: {regularization_loss:.3f}, lr: {optimizer.current_learning_rate}')
 
         #backward pass
-        loss_activation.backward(loss_activation.output, y)
-        layer2.backward(loss_activation.dinputs)
-        dropout1.backward(layer2.dinputs)
-        activation1.backward(dropout1.dinputs)
+        loss_function.backward(activation2.output, y)
+        activation2.backward(loss_function.dinputs)
+        layer2.backward(activation2.dinputs)
+        activation1.backward(layer2.dinputs)
         layer1.backward(activation1.dinputs)
 
         optimizer.pre_update_params()
@@ -308,16 +333,16 @@ if __name__ == '__main__':
         optimizer.update_params(layer2)
         optimizer.post_update_params()
 
-    X_test, y_test = spiral_data(points=100, classes=3)
+    X_test, y_test = spiral_data(points=100, classes=2)
+    y_test = y_test.reshape(-1, 1)
     layer1.forward(X_test)
     activation1.forward(layer1.output)
     layer2.forward(activation1.output)
-    loss = loss_activation.forward(layer2.output, y_test)
+    activation2.forward(layer2.output)
+    loss = loss_function.calculate(activation2.output, y_test)
 
-    predictions = np.argmax(loss_activation.output, axis=1)
-
-    if len(y_test.shape) == 2:
-        y_test = np.argmax(y_test, axis=1)
+    predictions = (activation2.output > 0.5) * 1
+    accuracy = np.mean(predictions == y_test)
 
     accuracy = np.mean(predictions == y_test)
     print(f'validation, acc:{accuracy:.3f}, loss:{loss:.3f}')
