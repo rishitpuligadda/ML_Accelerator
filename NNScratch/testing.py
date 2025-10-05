@@ -1,9 +1,7 @@
+import cv2 
 import matplotlib.pyplot as plt
-import nnfs
-from nnfs.datasets import sine_data
 
-nnfs.init()
-X, y = sine_data()
+image_data = cv2.imread('../fashion_mnist_images/train/7/0002.png', cv2.IMREAD_UNCHANGED)
 
-plt.plot(X, y)
-plt.savefig("Plot.png")
+plt.imshow(image_data)
+plt.savefig('Plot.png')
