@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import nnfs
 from nnfs.datasets import sine_data
+import pickle
 
 def spiral_data(points, classes):
     X = np.zeros((points*classes, 2))
@@ -47,6 +48,13 @@ class Layer_Dense:
             self.dbiases += 2 * self.bias_regularizer_l2 * self.biases
 
         self.dinputs = np.dot(dvalues, self.weights.T)
+
+    def get_parameters(self):
+        return self.weights, self.biases
+        
+    def set_parameters(self, weights, biases):
+        self.weights = weights
+        self.biases = biases
 
 class Activation_ReLU:
     def forward(self, inputs, training):
@@ -398,10 +406,13 @@ class Model:
     def add(self, layer):
         self.layers.append(layer)
 
-    def set(self, *, loss, optimizer, accuracy):
-        self.loss = loss
-        self.optimizer = optimizer
-        self.accuracy = accuracy
+    def set(self, *, loss = None, optimizer = None, accuracy = None):
+        if loss is not None:
+            self.loss = loss
+        if optimizer is not None:
+            self.optimizer = optimizer
+        if accuracy is not None:
+            self.accuracy = accuracy
 
     def finalize(self):
         self.input_layer = Layer_Input()
@@ -422,7 +433,9 @@ class Model:
 
             if hasattr(self.layers[i], 'weights'):
                 self.trainable_layers.append(self.layers[i])
-        self.loss.remember_trainable_layers(self.trainable_layers)
+
+        if self.loss is not None:
+            self.loss.remember_trainable_layers(self.trainable_layers)
         
         if isinstance(self.layers[-1], Activation_SoftMax) and isinstance(self.loss, Loss_CategoricalCrossEntropy):
             self.softmax_classifier_output = Activation_Softmax_Loss_CategoricalCrossentropy()
@@ -523,8 +536,43 @@ class Model:
             validation_accuracy = self.accuracy.calculate_accumulated()
         print(f'validation, acc:{validation_accuracy:.3f}, loss:{validation_loss:.3f}')
 
+    def get_parameters(self):
+        parameters = []
 
+        for layer in self.trainable_layers:
+            parameters.append(layer.get_parameters())
+
+        return parameters
+
+    def set_parameters(self, parameters):
+        for parameters_set, layer in zip(parameters, self.trainable_layers):
+            layer.set_parameters(*parameters_set)
+
+    def save_parameters(self, path):
+        with open(path, 'wb') as f:
+            pickle.dump(self.get_parameters(), f)
     
+    def load_parameters(self, path):
+        with open(path, 'rb') as f:
+            self.set_parameters(pickle.load(f))
+            
+    def predict(self, X, *, batch_size = None):
+        prediction_steps = 1
+        if batch_size is not None:
+            prediction_steps = len(X) // batch_size
+            if prediction_steps * batch_size < len(X):
+                prediction_steps += 1
+
+        output = []
+        for step in range(prediction_steps):
+            if batch_size is None:
+                batch_X = X
+            else:
+                batch_X = X[step * batch_size:(step + 1) * batch_size]
+            batch_output = self.forward(batch_X, training = False)
+            output.append(batch_output)
+
+        return np.vstack(output)
 
 '''
 if __name__ == '__main__':

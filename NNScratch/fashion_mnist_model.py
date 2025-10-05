@@ -23,6 +23,19 @@ def create_data_mnist(path):
 
 X, y, X_test, y_test = create_data_mnist('../fashion_mnist_images')
 
+fashion_mnist_labels = {
+        0: 'T-Shirt',
+        1: 'Trouser',
+        2: 'Pullover',
+        3: 'Dress',
+        4: 'Coat',
+        5: 'Sandal',
+        6: 'Shirt',
+        7: 'Sneaker',
+        8: 'Bag',
+        9: 'Ankle boot'
+                        }
+
 keys = np.array(range(X.shape[0]))
 np.random.shuffle(keys)
 X = X[keys]
@@ -49,4 +62,21 @@ model.finalize()
 
 model.train(X, y, validation_data = (X_test, y_test), epochs = 10, batch_size = 128, print_every = 100)
 
-model.evaluate(X, y)
+parameters = model.get_parameters()
+model.save_parameters('../fasion_mnist.parms')
+
+confidences = model.predict(X_test[:5])
+predictions = model.output_layer_activation.predictions(confidences)
+
+for prediction in predictions:
+    print(fashion_mnist_labels[prediction])
+
+image_data = cv2.imread('../pants.png', cv2.IMREAD_GRAYSCALE)
+image_data = cv2.resize(image_data, (28, 28))
+image_data = 255 - image_data
+image_data = (image_data.reshape(1, -1).astype(np.float32) - 127.5) / 127.5
+
+confidences = model.predict(image_data)
+predictions = model.output_layer_activation.predictions(confidences)
+prediction = fashion_mnist_labels[predictions[0]]
+print(prediction)
