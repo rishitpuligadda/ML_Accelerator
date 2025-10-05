@@ -1,4 +1,7 @@
 import numpy as np 
+import matplotlib.pyplot as plt
+import nnfs
+from nnfs.datasets import sine_data
 
 def spiral_data(points, classes):
     X = np.zeros((points*classes, 2))
@@ -11,9 +14,6 @@ def spiral_data(points, classes):
         y[ix] = class_number
     return X, y
 
-X, y = spiral_data(100, 2)
-y = y.reshape(-1, 1)
-
 class Layer_Dense:
     def __init__(self, n_inputs, n_neurons, weight_regularizer_l1=0, weight_regularizer_l2=0, bias_regularizer_l1=0, bias_regularizer_l2=0):
         self.weights = 0.1 * np.random.randn(n_inputs, n_neurons)
@@ -23,7 +23,7 @@ class Layer_Dense:
         self.bias_regularizer_l1 = bias_regularizer_l1
         self.bias_regularizer_l2 = bias_regularizer_l2
 
-    def forward(self, inputs):
+    def forward(self, inputs, training):
         self.output = np.dot(inputs, self.weights) + self.biases
         self.inputs = inputs
 
@@ -49,7 +49,7 @@ class Layer_Dense:
         self.dinputs = np.dot(dvalues, self.weights.T)
 
 class Activation_ReLU:
-    def forward(self, inputs):
+    def forward(self, inputs, training):
         self.output = np.maximum(0, inputs)
         self.inputs = inputs
 
@@ -57,8 +57,11 @@ class Activation_ReLU:
         self.dinputs = dvalues.copy()
         self.dinputs[self.inputs <= 0] = 0
 
+    def predictions(self, outputs):
+        return outputs
+
 class Activation_SoftMax:
-    def forward(self, inputs):
+    def forward(self, inputs, training):
         self.inputs = inputs
         exp_values = np.exp(inputs - np.max(inputs, axis=1, keepdims=True))
         self.output = exp_values / np.sum(exp_values, axis=1, keepdims=True)
@@ -70,36 +73,60 @@ class Activation_SoftMax:
             jacobian_matrix = np.diagflat(single_output) - np.dot(single_output, single_output.T)
             self.dinputs[index] = np.dot(jacobian_matrix, single_dvalues)
 
+    def predictions(self, outputs):
+        return np.argmax(outputs, axis=1)
+
 class Activation_Sigmoid:
-    def forward(self, inputs):
+    def forward(self, inputs, training):
         self.inputs = inputs
         self.output = 1/ (1 + np.exp(-inputs))
 
     def backward(self, dvalues):
         self.dinputs = dvalues * (1 - self.output) * self.output
 
+    def predictions(self, outputs):
+        return (outputs > 0.5) * 1
+
+class Activation_Linear:
+    def forward(self, inputs, training):
+        self.inputs = inputs
+        self.output = inputs
+
+    def backward(self, dvalues):
+        self.dinputs = dvalues.copy()
+
+    def predictions(self, outputs):
+        return outputs
+
 class Loss:
-    def calculate(self, output, y):
-        sample_losses = self.forward(output, y)
-        data_loss = np.mean(sample_losses)
-        return data_loss
+    def remember_trainable_layers(self, trainable_layers):
+        self.trainable_layers = trainable_layers
 
-    def regularization_loss(self, layer):
+    def regularization_loss(self):
         regularization_loss = 0
-    
-        if layer.weight_regularizer_l1 > 0:
-            regularization_loss += layer.weight_regularizer_l1 * np.sum(np.abs(layer.weights))
 
-        if layer.weight_regularizer_l2 > 0:
-            regularization_loss += layer.weight_regularizer_l2 * np.sum(layer.weights ** 2)
+        for layer in self.trainable_layers:
+            if layer.weight_regularizer_l1 > 0:
+                regularization_loss += layer.weight_regularizer_l1 * np.sum(np.abs(layer.weights))
 
-        if layer.bias_regularizer_l1 > 0:
-            regularization_loss += layer.bias_regularizer_l1 * np.sum(np.abs(layer.biases))
+            if layer.weight_regularizer_l2 > 0:
+                regularization_loss += layer.weight_regularizer_l2 * np.sum(layer.weights ** 2)
 
-        if layer.bias_regularizer_l2 > 0:
-            regularization_loss += layer.bias_regularizer_l2 * np.sum(layer.biases ** 2)
+            if layer.bias_regularizer_l1 > 0:
+                regularization_loss += layer.bias_regularizer_l1 * np.sum(np.abs(layer.biases))
+
+            if layer.bias_regularizer_l2 > 0:
+                regularization_loss += layer.bias_regularizer_l2 * np.sum(layer.biases ** 2)
 
         return regularization_loss
+
+    def calculate(self, output, y, include_regularization = False):
+        sample_losses = self.forward(output, y)
+        data_loss = np.mean(sample_losses)
+
+        if not include_regularization:
+            return data_loss
+        return data_loss, self.regularization_loss()
 
 class Loss_CategoricalCrossEntropy(Loss):
     def forward(self, y_pred, y_true):
@@ -136,18 +163,31 @@ class Loss_BinaryCrossentropy(Loss):
         self.dinputs = -(y_true / clipped_dvalues - (1 - y_true) / (1 - clipped_dvalues)) / outputs
         self.dinputs = self.dinputs / samples
 
+class Loss_MeanSquaredError(Loss):
+    def forward(self, y_pred, y_true):
+        sample_losses = np.mean((y_true - y_pred)**2, axis=-1)
+        return sample_losses
+
+    def backward(self, dvalues, y_true):
+        samples = len(dvalues)
+        outputs = len(dvalues[0])
+        self.dinputs = -2 * (y_true - dvalues) / outputs
+        self.dinputs = self.dinputs / samples
+
+class Loss_MeanAbsoluteError(Loss):
+    def forward(self, y_pred, y_true):
+        sample_losses = np.mean(np.abs(y_true - y_pred), axis=-1)
+        return sample_losses
+
+    def backward(self, dvalues, y_true):
+        samples = len(dvalues)
+        outputs = len(dvalues[0])
+        self.dinputs = np.sign(y_true - dvalues) / outputs
+        self.dinputs = self.dinputs / samples
+
 #softmax classifier - combined softmax activation and
 #cross-entropy loss for faster backward step
 class Activation_Softmax_Loss_CategoricalCrossentropy():
-    def __init__(self):
-        self.activation = Activation_SoftMax()
-        self.loss = Loss_CategoricalCrossEntropy()
-
-    def forward(self, inputs, y_true):
-        self.activation.forward(inputs)
-        self.output = self.activation.output
-        return self.loss.calculate(self.output, y_true)
-
     def backward(self, dvalues, y_true):
         samples = len(dvalues)
         if len(y_true.shape) == 2:
@@ -160,8 +200,13 @@ class Layer_Dropout:
     def __init__(self, rate):
         self.rate = 1 - rate
 
-    def forward(self, inputs):
+    def forward(self, inputs, training):
         self.inputs = inputs
+
+        if not training:
+            self.output = inputs.copy()
+            return
+
         self.binary_mask = np.random.binomial(1, self.rate, size=inputs.shape)/self.rate
         self.output = inputs * self.binary_mask
 
@@ -291,7 +336,122 @@ class Optimizer_Adam:
     def post_update_params(self):
         self.iterations += 1
 
+class Layer_Input:
+    def forward(self, inputs, training):
+        self.output = inputs
 
+class Accuracy:
+    def calculate(self, predictions, y):
+        comparisons = self.compare(predictions, y)
+        accuracy = np.mean(comparisons)
+        return accuracy
+
+class Accuracy_Regression(Accuracy):
+    def __init__(self):
+        self.precision = None
+
+    def init(self, y, reinit = False):
+        if self.precision is None or reinit:
+            self.precision = np.std(y) / 250
+
+    def compare(self, predictions, y):
+        return np.absolute(predictions - y) < self.precision
+
+class Accuracy_Categorical(Accuracy):
+    def init(self, y):
+        pass
+
+    def compare(self, predictions, y):
+        if len(y.shape) == 2:
+            y = np.argmax(y, axis = 1)
+
+        return predictions == y
+
+class Model:
+    def __init__(self):
+        self.layers = []
+        self.softmax_classifier_output = None
+
+    def add(self, layer):
+        self.layers.append(layer)
+
+    def set(self, *, loss, optimizer, accuracy):
+        self.loss = loss
+        self.optimizer = optimizer
+        self.accuracy = accuracy
+
+    def finalize(self):
+        self.input_layer = Layer_Input()
+        layer_count = len(self.layers)
+        self.trainable_layers = []
+
+        for i in range(layer_count):
+            if i == 0:
+                self.layers[i].prev = self.input_layer
+                self.layers[i].next = self.layers[i+1]
+            elif i < layer_count - 1:
+                self.layers[i].prev = self.layers[i-1]
+                self.layers[i].next = self.layers[i+1]
+            else:
+                self.layers[i].prev = self.layers[i-1]
+                self.layers[i].next = self.loss
+                self.output_layer_activation = self.layers[i]
+
+            if hasattr(self.layers[i], 'weights'):
+                self.trainable_layers.append(self.layers[i])
+        self.loss.remember_trainable_layers(self.trainable_layers)
+        
+        if isinstance(self.layers[-1], Activation_SoftMax) and isinstance(self.loss, Loss_CategoricalCrossEntropy):
+            self.softmax_classifier_output = Activation_Softmax_Loss_CategoricalCrossentropy()
+
+    def forward(self, X, training):
+        self.input_layer.forward(X, training)
+
+        for layer in self.layers:
+            layer.forward(layer.prev.output, training)
+
+        return layer.output
+
+    def backward(self, output, y):
+        if self.softmax_classifier_output is not None:
+            self.softmax_classifier_output.backward(output, y)
+            self.layers[-1].dinputs = self.softmax_classifier_output.dinputs 
+            for layer in reversed(self.layers[:-1]):
+                layer.backward(layer.next.dinputs)
+            return
+        self.loss.backward(output, y)
+        for layer in reversed(self.layers):
+            layer.backward(layer.next.dinputs)
+
+    def train(self, X, y, *, epochs=1, print_every=1, validation_data = None):
+        self.accuracy.init(y)
+        for epoch in range(1, epochs+1):
+            output = self.forward(X, training = True)
+            data_loss, regularization_loss = self.loss.calculate(output, y, include_regularization = True)
+            loss = data_loss + regularization_loss
+            predictions = self.output_layer_activation.predictions(output)
+            accuracy = self.accuracy.calculate(predictions, y)
+
+            self.backward(output, y)
+            self.optimizer.pre_update_params()
+
+            for layer in self.trainable_layers:
+                self.optimizer.update_params(layer)
+            self.optimizer.post_update_params()
+
+            if not epoch % print_every:
+                print(f'epoch:{epoch}, acc:{accuracy:.3f}, loss:{loss:.3f}, data_loss:{data_loss:.3f}, reg_loss:{regularization_loss:.3f}, lr:{self.optimizer.current_learning_rate}')
+
+        if validation_data is not None:
+            X_val, y_val = validation_data
+            output = self.forward(X_val, training = False)
+            loss = self.loss.calculate(output, y_val)
+            predictions = self.output_layer_activation.predictions(output)
+            accuracy = self.accuracy.calculate(predictions, y_val)
+            print(f'validation, acc:{accuracy:.3f}, loss:{loss:.3f}')
+    
+
+'''
 if __name__ == '__main__':
     layer1 = Layer_Dense(2, 64, weight_regularizer_l2=5e-4, bias_regularizer_l2=5e-4)
     activation1 = Activation_ReLU()
@@ -347,7 +507,6 @@ if __name__ == '__main__':
     accuracy = np.mean(predictions == y_test)
     print(f'validation, acc:{accuracy:.3f}, loss:{loss:.3f}')
 
-    '''
     print(layer1.output)
     # ---- Debug: last 5 samples ----
     print("\n===== Debug: Last 5 samples =====")
@@ -396,4 +555,26 @@ if __name__ == '__main__':
 
     print("All weights and biases are stored in the files, biases one per line.")
 
-    '''
+'''
+
+if __name__ == '__main__':
+    X, y = spiral_data(points=1000, classes=3)
+    X_test, y_test = spiral_data(points=100, classes=3)
+
+    model = Model()
+
+    model.add(Layer_Dense(2, 512, weight_regularizer_l2=5e-4, bias_regularizer_l2=5e-4))
+    model.add(Activation_ReLU())
+    model.add(Layer_Dropout(0.1))
+    model.add(Layer_Dense(512, 3))
+    model.add(Activation_SoftMax())
+
+    model.set(
+            loss = Loss_CategoricalCrossEntropy(),
+            optimizer = Optimizer_Adam(learning_rate = 0.05, decay = 5e-5),
+            accuracy = Accuracy_Categorical()
+        )
+
+    model.finalize()
+
+    model.train(X, y, validation_data=(X_test, y_test), epochs = 10000, print_every = 100)
