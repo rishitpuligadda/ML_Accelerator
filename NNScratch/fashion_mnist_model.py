@@ -63,7 +63,7 @@ model.finalize()
 model.train(X, y, validation_data = (X_test, y_test), epochs = 10, batch_size = 128, print_every = 100)
 
 parameters = model.get_parameters()
-model.save_parameters('../fasion_mnist.parms')
+model.save_parameters()
 
 confidences = model.predict(X_test[:5])
 predictions = model.output_layer_activation.predictions(confidences)
@@ -71,12 +71,15 @@ predictions = model.output_layer_activation.predictions(confidences)
 for prediction in predictions:
     print(fashion_mnist_labels[prediction])
 
-image_data = cv2.imread('../pants.png', cv2.IMREAD_GRAYSCALE)
+image_data = cv2.imread('../bag.png', cv2.IMREAD_GRAYSCALE)
 image_data = cv2.resize(image_data, (28, 28))
 image_data = 255 - image_data
 image_data = (image_data.reshape(1, -1).astype(np.float32) - 127.5) / 127.5
+
+np.savetxt('../parameters/input_image.txt', image_data, fmt = "%.6f")
 
 confidences = model.predict(image_data)
 predictions = model.output_layer_activation.predictions(confidences)
 prediction = fashion_mnist_labels[predictions[0]]
 print(prediction)
+

@@ -548,10 +548,13 @@ class Model:
         for parameters_set, layer in zip(parameters, self.trainable_layers):
             layer.set_parameters(*parameters_set)
 
-    def save_parameters(self, path):
-        with open(path, 'wb') as f:
-            pickle.dump(self.get_parameters(), f)
-    
+    def save_parameters(self, path_prefix = "../parameters/", width = 18, frac = 8):
+        parameters = self.get_parameters()
+
+        for layer_idx, (W, B) in enumerate(parameters, start=1):
+            np.savetxt(f"{path_prefix}weights_layer{layer_idx}.txt", W.T, fmt="%.6f")
+            np.savetxt(f"{path_prefix}biases_layer{layer_idx}.txt", B.T, fmt="%.6f")
+
     def load_parameters(self, path):
         with open(path, 'rb') as f:
             self.set_parameters(pickle.load(f))
