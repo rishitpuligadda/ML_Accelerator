@@ -54,7 +54,7 @@ model.add(Activation_SoftMax())
 
 model.set(
         loss = Loss_CategoricalCrossEntropy(),
-        optimizer = Optimizer_Adam(decay = 1e-3),
+        optimizer = Optimizer_Adam(decay = 1e-4),
         accuracy = Accuracy_Categorical()
         )
 
@@ -71,7 +71,9 @@ predictions = model.output_layer_activation.predictions(confidences)
 for prediction in predictions:
     print(fashion_mnist_labels[prediction])
 
-image_data = cv2.imread('../bag.png', cv2.IMREAD_GRAYSCALE)
+model.save('fashion_mnist.model')
+
+image_data = cv2.imread('../fashion_mnist_images/test/0/0000.png', cv2.IMREAD_GRAYSCALE)
 image_data = cv2.resize(image_data, (28, 28))
 image_data = 255 - image_data
 image_data = (image_data.reshape(1, -1).astype(np.float32) - 127.5) / 127.5

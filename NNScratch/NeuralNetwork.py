@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import nnfs
 from nnfs.datasets import sine_data
 import pickle
+import copy
 
 def spiral_data(points, classes):
     X = np.zeros((points*classes, 2))
@@ -554,11 +555,24 @@ class Model:
         for layer_idx, (W, B) in enumerate(parameters, start=1):
             np.savetxt(f"{path_prefix}weights_layer{layer_idx}.txt", W.T, fmt="%.6f")
             np.savetxt(f"{path_prefix}biases_layer{layer_idx}.txt", B.T, fmt="%.6f")
-
-    def load_parameters(self, path):
+    
+    def load_parameters_from_txt(self, path_prefix="../parameters/"):
         with open(path, 'rb') as f:
             self.set_parameters(pickle.load(f))
-            
+
+    def save(self, path):
+        model = copy.deepcopy(self)
+        model.loss.new_pass()
+        model.accuracy.new_pass()
+        model.input_layer.__dict__.pop('output', None)
+        model.loss.__dict__.pop('dinputs', None)
+
+        for layer in model.layers:
+            for property in ['inputs', 'output', 'dinputs', 'dweights', 'dbiases']:
+                layer.__dict__.pop(property, None)
+        with open(path, 'wb') as f:
+            pickle.dump(model, f)
+           
     def predict(self, X, *, batch_size = None):
         prediction_steps = 1
         if batch_size is not None:
@@ -576,6 +590,12 @@ class Model:
             output.append(batch_output)
 
         return np.vstack(output)
+
+    @staticmethod
+    def load(path):
+        with open(path, 'rb') as f:
+            model = pickle.load(f)
+            return model
 
 '''
 if __name__ == '__main__':
