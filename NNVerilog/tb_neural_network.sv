@@ -193,7 +193,7 @@ module tb_neural_network_3layer_single;
         real temp;
 
         // ---- Load weights and biases ----
-        string files[6] = '{
+        static string files[6] = '{
             "../parameters/weights_layer1.txt",
             "../parameters/biases_layer1.txt",
             "../parameters/weights_layer2.txt",
@@ -201,6 +201,19 @@ module tb_neural_network_3layer_single;
             "../parameters/weights_layer3.txt",
             "../parameters/biases_layer3.txt"
         };
+
+        static string class_labels [OUT_SIZE] = '{
+            "T-Shirt",
+            "Trouser",
+            "Pullover",
+            "Dress",
+            "Coat",
+            "Sandal",
+            "Shirt",
+            "Sneaker",
+            "Bag",
+            "Ankle boot"
+            };
 
         // ---- Layer 1 ----
         f = $fopen(files[0], "r");
@@ -276,7 +289,7 @@ module tb_neural_network_3layer_single;
                 max_idx = i;
             end
         end
-        $display("Predicted class: %0d", max_idx);
+        $display("Predicted class: %0d (%s)", max_idx, class_labels[max_idx]);
 
         #5 $finish;
     end

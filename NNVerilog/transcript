@@ -1,5 +1,5 @@
 # vsim -suppress 3116 -c tb_neural_network_3layer_single -do "run -all; quit" 
-# Start time: 17:36:35 on Oct 05,2025
+# Start time: 10:54:43 on Oct 06,2025
 # Loading sv_std.std
 # Loading work.tb_neural_network_3layer_single
 # Loading work.neural_network_3layer_softmax
@@ -8,8 +8,8 @@
 # Loading work.softmax_fixedpt
 # Loading work.exp_approx
 # run -all
-# Predicted class: 8
-# ** Note: $finish    : tb_neural_network.sv(281)
+# Predicted class: 1 (Trouser)
+# ** Note: $finish    : tb_neural_network.sv(294)
 #    Time: 6 ns  Iteration: 0  Instance: /tb_neural_network_3layer_single
-# End time: 17:36:35 on Oct 05,2025, Elapsed time: 0:00:00
+# End time: 10:54:44 on Oct 06,2025, Elapsed time: 0:00:01
 # Errors: 0, Warnings: 0, Suppressed Warnings: 10
