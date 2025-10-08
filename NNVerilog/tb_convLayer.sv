@@ -10,6 +10,7 @@ module tb_convolutional_fp_32;
     parameter int KERNEL_SIZE = 3;
     parameter int DATA_W      = 18;
     parameter int FRAC        = 9; // fractional bits for fixed-point
+    parameter int DILATION    = 2; // new dilation parameter
 
     // ---- Signals ----
     logic signed [DATA_W-1:0] input_data  [0:IN_DEPTH-1][0:IN_HEIGHT-1][0:IN_WIDTH-1];
@@ -25,7 +26,8 @@ module tb_convolutional_fp_32;
         .OUT_DEPTH(OUT_DEPTH),
         .KERNEL_SIZE(KERNEL_SIZE),
         .DATA_W(DATA_W),
-        .FRAC(FRAC)
+        .FRAC(FRAC),
+        .DILATION(DILATION)
     ) conv_inst (
         .input_data(input_data),
         .kernels(kernels),
@@ -73,8 +75,8 @@ module tb_convolutional_fp_32;
         // Wait a little for combinational logic to settle
         #1;
 
-        // ---- Display first 2 channels as sanity check ----
-        for (i = 0; i < 32; i++) begin
+        // ---- Display all channels ----
+        for (i = 0; i < OUT_DEPTH; i++) begin
             $display("Output channel %0d:", i);
             for (r = 0; r < IN_HEIGHT; r++) begin
                 for (c = 0; c < IN_WIDTH; c++) begin

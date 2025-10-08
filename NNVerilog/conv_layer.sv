@@ -5,7 +5,8 @@ module Convolutional #(
     parameter int OUT_DEPTH   = 2,
     parameter int KERNEL_SIZE = 3,
     parameter int DATA_W      = 16,
-    parameter int FRAC        = 4   // fractional bits for fixed-point
+    parameter int FRAC        = 4,   // fractional bits for fixed-point
+    parameter int DILATION    = 1    // new dilation parameter
 )(
     // Input: [in_depth][H][W]  (single batch)
     input  logic signed [DATA_W-1:0] input_data  [0:IN_DEPTH-1][0:IN_HEIGHT-1][0:IN_WIDTH-1],
@@ -25,8 +26,8 @@ module Convolutional #(
     int pad_top, pad_left;
 
     always_comb begin
-        pad_top  = KERNEL_SIZE / 2;
-        pad_left = KERNEL_SIZE / 2;
+        pad_top  = (KERNEL_SIZE / 2) * DILATION;
+        pad_left = (KERNEL_SIZE / 2) * DILATION;
 
         // Loop over output channels (filters)
         for (cout = 0; cout < OUT_DEPTH; cout++) begin
@@ -40,8 +41,8 @@ module Convolutional #(
                         // Loop over kernel spatial dims
                         for (m = 0; m < KERNEL_SIZE; m++) begin
                             for (n = 0; n < KERNEL_SIZE; n++) begin
-                                automatic int in_r = r + m - pad_top;
-                                automatic int in_c = c + n - pad_left;
+                                automatic int in_r = r + m*DILATION - pad_top;
+                                automatic int in_c = c + n*DILATION - pad_left;
 
                                 if (in_r >= 0 && in_r < IN_HEIGHT &&
                                     in_c >= 0 && in_c < IN_WIDTH) begin
