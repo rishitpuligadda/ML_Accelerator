@@ -1,109 +1,92 @@
 `timescale 1ns/1ps
 
-module tb_convLayer;
+module tb_convolutional_fp_32;
 
-  // Parameters for dilated 3x3 conv
-  localparam int D_IN       = 1;     // input channels
-  localparam int H_IN       = 5;
-  localparam int W_IN       = 5;
-  localparam int N_FILTERS  = 64;    // output channels
-  localparam int H_FILT     = 3;     // 3x3 kernel
-  localparam int W_FILT     = 3;
-  localparam int STRIDE     = 1;
-  localparam int PADDING    = 2;     // for dilation=2 and "same" output
-  localparam int DILATION   = 2;     // dilation factor
-  localparam int DATA_WIDTH = 18;
-  localparam int FRAC_WIDTH = 8;     // Q8.8 fixed-point
+    // ---- Parameters ----
+    parameter int IN_DEPTH    = 2;
+    parameter int IN_HEIGHT   = 5;
+    parameter int IN_WIDTH    = 5;
+    parameter int OUT_DEPTH   = 32;
+    parameter int KERNEL_SIZE = 3;
+    parameter int DATA_W      = 18;
+    parameter int FRAC        = 9; // fractional bits for fixed-point
 
-  // DUT signals
-  logic clk;
-  logic rst_n;
-  logic start;
-  logic done;
+    // ---- Signals ----
+    logic signed [DATA_W-1:0] input_data  [0:IN_DEPTH-1][0:IN_HEIGHT-1][0:IN_WIDTH-1];
+    logic signed [DATA_W-1:0] kernels     [0:KERNEL_SIZE-1][0:KERNEL_SIZE-1][0:IN_DEPTH-1][0:OUT_DEPTH-1];
+    logic signed [DATA_W-1:0] biases      [0:OUT_DEPTH-1];
+    logic signed [DATA_W-1:0] output_data [0:OUT_DEPTH-1][0:IN_HEIGHT-1][0:IN_WIDTH-1];
 
-  // Clock generation
-  initial begin
-    clk = 0;
-    forever #5 clk = ~clk;
-  end
+    // ---- Convolution Instance ----
+    Convolutional #(
+        .IN_DEPTH(IN_DEPTH),
+        .IN_HEIGHT(IN_HEIGHT),
+        .IN_WIDTH(IN_WIDTH),
+        .OUT_DEPTH(OUT_DEPTH),
+        .KERNEL_SIZE(KERNEL_SIZE),
+        .DATA_W(DATA_W),
+        .FRAC(FRAC)
+    ) conv_inst (
+        .input_data(input_data),
+        .kernels(kernels),
+        .biases(biases),
+        .output_data(output_data)
+    );
 
-  // Instantiate DUT
-  conv_forward_inference_fixed #(
-    .D_IN(D_IN),
-    .H_IN(H_IN),
-    .W_IN(W_IN),
-    .N_FILTERS(N_FILTERS),
-    .H_FILT(H_FILT),
-    .W_FILT(W_FILT),
-    .STRIDE(STRIDE),
-    .PADDING(PADDING),
-    .DILATION(DILATION),
-    .DATA_WIDTH(DATA_WIDTH),
-    .FRAC_WIDTH(FRAC_WIDTH)
-  ) dut (
-    .clk(clk),
-    .rst_n(rst_n),
-    .start(start),
-    .done(done)
-  );
+    integer i, r, c, cin, cout, kh, kw;
 
-  // Initialize DUT memory
-  initial begin
-    localparam int SCALE = 256; // Q8.8 scaling
-    rst_n = 0;
-    start = 0;
-    #10;
-    rst_n = 1;
+    // ---- Fixed-point conversion function ----
+    function automatic logic signed [DATA_W-1:0] to_fixed(input real val);
+        to_fixed = $rtoi(val * (1 << FRAC));
+    endfunction
 
-    // Custom input feature map (summed to 1 channel)
-    dut.X[0] = '{
-      '{ 6*SCALE, 3*SCALE, 2*SCALE, 3*SCALE, 6*SCALE },
-      '{ 1*SCALE, 2*SCALE, 1*SCALE, 2*SCALE, 1*SCALE },
-      '{ 2*SCALE, 1*SCALE, 2*SCALE, 1*SCALE, 2*SCALE },
-      '{ 5*SCALE, 4*SCALE, 5*SCALE, 4*SCALE, 5*SCALE },
-      '{ 1*SCALE, 2*SCALE, 1*SCALE, 2*SCALE, 1*SCALE }
-    };
+    initial begin
+        // ---- Initialize input_data ----
+        input_data[0] = '{'{to_fixed( 1.5), to_fixed( 2.1), to_fixed(-0.5), to_fixed( 4.2), to_fixed( 5.7)},
+                          '{to_fixed(-6.5), to_fixed( 7.1), to_fixed( 8.8), to_fixed(-9.5), to_fixed(10.3)},
+                          '{to_fixed(11.2), to_fixed(-12.3), to_fixed(13.8), to_fixed(14.6), to_fixed(-15.1)},
+                          '{to_fixed(16.3), to_fixed(-17.4), to_fixed(18.5), to_fixed(19.6), to_fixed(20.2)},
+                          '{to_fixed(-21.5), to_fixed(22.4), to_fixed(23.7), to_fixed(-24.8), to_fixed(25.9)}};
 
-    // Initialize 3x3 kernel weights for all 64 filters
-    for (int f = 0; f < N_FILTERS; f++) begin
-      for (int c = 0; c < D_IN; c++) begin
-        for (int i = 0; i < H_FILT; i++) begin
-          for (int j = 0; j < W_FILT; j++) begin
-            dut.Wght[f][c][i][j] = 1*SCALE; // all ones for simplicity
-          end
+        input_data[1] = '{'{to_fixed(-3.2), to_fixed(4.8), to_fixed(1.3), to_fixed(-2.1), to_fixed(0.0)},
+                          '{to_fixed(10.2), to_fixed(-9.3), to_fixed(8.1), to_fixed(7.5), to_fixed(-6.6)},
+                          '{to_fixed(-15.5), to_fixed(14.7), to_fixed(-13.2), to_fixed(12.4), to_fixed(11.9)},
+                          '{to_fixed(20.7), to_fixed(19.1), to_fixed(-18.2), to_fixed(17.8), to_fixed(-16.5)},
+                          '{to_fixed(25.3), to_fixed(-24.6), to_fixed(23.9), to_fixed(22.2), to_fixed(-21.1)}};
+
+        // ---- Initialize kernels deterministically ----
+        for (cout=0; cout<OUT_DEPTH; cout++) begin
+            for (cin=0; cin<IN_DEPTH; cin++) begin
+                for (kh=0; kh<KERNEL_SIZE; kh++) begin
+                    for (kw=0; kw<KERNEL_SIZE; kw++) begin
+                        kernels[kh][kw][cin][cout] = to_fixed( ((kh+1)*(kw+1) + cin + cout)*0.01 );
+                    end
+                end
+            end
         end
-      end
-      dut.Bias[f] = 0;
-    end
 
-    // Start convolution
-    #10;
-    start = 1;
-    #10;
-    start = 0;
+        // ---- Initialize biases to zero ----
+        for (cout=0; cout<OUT_DEPTH; cout++) begin
+            biases[cout] = to_fixed(0.0);
+        end
 
-    // Wait for done
-    wait(done);
+        // Wait a little for combinational logic to settle
+        #1;
 
-    // Display output for all filters with ReLU applied
-    $display("Dilated Convolution Output (all filters, floating point, ReLU):");
-    for (int f = 0; f < N_FILTERS; f++) begin
-        $display("Filter %0d:", f);
-        for (int i = 0; i < H_IN; i++) begin
-            for (int j = 0; j < W_IN; j++) begin
-                automatic real val;
-                val = dut.Y[f][i][j] / (2.0 ** FRAC_WIDTH);
-                // Apply ReLU
-                if (val < 0) val = 0;
-                $write("%0f ", val);
+        // ---- Display first 2 channels as sanity check ----
+        for (i = 0; i < 32; i++) begin
+            $display("Output channel %0d:", i);
+            for (r = 0; r < IN_HEIGHT; r++) begin
+                for (c = 0; c < IN_WIDTH; c++) begin
+                    $write("%0.4f ", $itor(output_data[i][r][c]) / (1 << FRAC));
+                end
+                $write("\n");
             end
             $write("\n");
         end
-        $write("\n");
-    end
 
-    $finish;
-  end
+        $finish;
+    end
 
 endmodule
 
